@@ -6,7 +6,7 @@
 #!homepage=https://www.adobe.com/products/photoshop-lightroom.html
 
 [Script]
-http-response ^https?:\/\/lrmobile-api\.licensing\.adobe\.com\/v1\/lightroom script-path=lightroom.js,timeout=10,require-body=true,max-size=0
+http-response ^https?:\/\/lrmobile-api\.licensing\.adobe\.com\/v1\/lightroom script-path=https://raw.githubusercontent.com/chinyinglu/shadowrocket-lightroom/main/lightroom.js,timeout=10,require-body=true,max-size=0
 
 [MITM]
 hostname = lrmobile-api.licensing.adobe.com
