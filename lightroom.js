@@ -1,67 +1,99 @@
 /**
- * Adobe Lightroom 会员解锁脚本（Shadowrocket）- 调试增强版
+ * Adobe Lightroom 会员解锁脚本（Shadowrocket 小火箭）
  *
- * 原理：拦截 Lightroom 移动端的授权校验接口
- *   https://lrmobile-api.licensing.adobe.com/...
- * 把返回 JSON 中的授权字段改为"已订阅"状态，让 App 开放高级功能。
- *
- * 调试：所有关键节点都会打 console.log，
- *   Shadowrocket → 设置 → 日志 里搜索 "LR " 即可看到。
+ * 目标接口: https://lcs-mobile-cops.adobe.io/mobiles/access_profile/v3
+ * 原理: 响应是 {"asnp":{"payload":"<base64(JSON)>"}}
+ *      解码 payload -> 把授权字段改成已订阅 -> 重新编码
  *
  * 仅供学习交流，请支持正版。
  */
 
+// 自包含 base64（Shadowrocket 的 JS 运行时没有 Buffer / atob）
+const _b64chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/';
+
+function _b64decode(s) {
+  s = s.replace(/[^A-Za-z0-9+/=]/g, '');
+  const bytes = [];
+  let buf = 0, bits = 0;
+  for (let i = 0; i < s.length; i++) {
+    const idx = _b64chars.indexOf(s[i]);
+    if (idx === -1) continue;
+    buf = (buf << 6) | idx;
+    bits += 6;
+    if (bits >= 8) {
+      bits -= 8;
+      bytes.push((buf >> bits) & 0xff);
+    }
+  }
+  let str = '';
+  for (let i = 0; i < bytes.length; i++) str += String.fromCharCode(bytes[i]);
+  return str;
+}
+
+function _b64encode(s) {
+  const bytes = [];
+  for (let i = 0; i < s.length; i++) bytes.push(s.charCodeAt(i) & 0xff); // 内容为 ASCII
+  let out = '';
+  for (let i = 0; i < bytes.length; i += 3) {
+    const b0 = bytes[i];
+    const b1 = bytes[i + 1];
+    const b2 = bytes[i + 2];
+    out += _b64chars[b0 >> 2];
+    out += _b64chars[((b0 & 3) << 4) | ((b1 === undefined ? 0 : b1) >> 4)];
+    out += b1 === undefined ? '=' : _b64chars[((b1 & 15) << 2) | ((b2 === undefined ? 0 : b2) >> 6)];
+    out += b2 === undefined ? '=' : _b64chars[b2 & 63];
+  }
+  return out;
+}
+
 const url = $request.url;
 
-// 1) 命中日志：任何进入本脚本的请求都会打印（注意：模块匹配范围之外的请求不会进来）
-console.log('LR hit: ' + url);
-
-// 只处理 Adobe 授权接口，其他请求直接放行
-if (url.indexOf('lrmobile-api.licensing.adobe.com') === -1) {
-  console.log('LR pass: not licensing host');
+// 只处理授权接口，其他请求放行
+if (url.indexOf('lcs-mobile-cops.adobe.io') === -1) {
   $done({});
 }
 
-const raw = $response.body;
-
-// 2) 空响应：有些请求没有 body，无需处理
-if (!raw || raw.length === 0) {
-  console.log('LR empty body, status=' + ($response.status || '?') + ', url=' + url);
-  $done({});
-}
-
+let body;
 try {
-  const body = JSON.parse(raw);
-
-  // 常见授权字段（不同版本字段名略有差异，存在的字段全部置 true 兜底）
-  ['entitled', 'premium', 'is_premium', 'has_entitlement', 'is_entitled'].forEach(
-    (k) => {
-      if (k in body) body[k] = true;
-    }
-  );
-
-  // 嵌套结构：subscription
-  if (body.subscription && typeof body.subscription === 'object') {
-    body.subscription.entitled = true;
-    body.subscription.premium = true;
-  }
-
-  // 嵌套结构：entitlements 数组
-  if (Array.isArray(body.entitlements)) {
-    body.entitlements.forEach((e) => {
-      if (e && typeof e === 'object') {
-        e.entitled = true;
-        e.premium = true;
-      }
-    });
-  }
-
-  // 3) 成功日志：打印原始响应，方便核对字段
-  console.log('LR unlock OK, url=' + url + ', original body=' + raw);
-
-  $done({ body: JSON.stringify(body) });
+  body = JSON.parse($response.body);
 } catch (e) {
-  // 4) 解析失败：body 不是 JSON（可能是加密/压缩/错误页）
-  console.log('LR parse error: ' + e + ', url=' + url + ', body=' + raw);
+  console.log('LR outer parse error: ' + e + ', body=' + $response.body);
   $done({});
 }
+
+if (body && body.asnp && body.asnp.payload) {
+  try {
+    const inner = JSON.parse(_b64decode(body.asnp.payload));
+
+    // 核心授权字段
+    inner.profileStatus = 'PROFILE_AVAILABLE';
+    inner.profileStatusReason = 0;
+    inner.profileStatusReasonText = '';
+    inner.appLicenseMode = 'NAMED_USER';
+
+    // 权益项
+    const items = inner.appProfile && inner.appProfile.accessibleItems;
+    if (Array.isArray(items)) {
+      items.forEach(function (it) {
+        if (it.source) {
+          it.source.type = 'FULFILLED_ENTITLEMENT';
+          it.source.status_reason = null;
+        }
+        const cc = it.fulfillable_items && it.fulfillable_items.cc_storage;
+        if (cc && cc.charging_model) {
+          cc.charging_model.cap = 1099511627776; // 1TB
+          cc.charging_model.unit = 'GB';
+          cc.charging_model.model = 'RECURRING';
+          cc.charging_model.overage = 'NA';
+        }
+      });
+    }
+
+    body.asnp.payload = _b64encode(JSON.stringify(inner));
+    console.log('LR patched OK');
+  } catch (e) {
+    console.log('LR asnp decode error: ' + e);
+  }
+}
+
+$done({ body: JSON.stringify(body) });
