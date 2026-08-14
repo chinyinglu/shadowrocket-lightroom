@@ -6,7 +6,7 @@
 #!homepage=https://www.adobe.com/products/photoshop-lightroom.html
 
 [Script]
-http-response ^https?:\/\/lcs-mobile-cops\.adobe\.io\/mobiles\/access_profile\/v3 script-path=https://cdn.jsdelivr.net/gh/chinyinglu/shadowrocket-lightroom@main/lightroom.js,timeout=10,require-body=true,max-size=0
+http-response ^https?:\/\/lcs-mobile-cops\.adobe\.io\/mobiles\/access_profile\/v3 script-path=https://raw.githubusercontent.com/chinyinglu/shadowrocket-lightroom/main/lightroom.js,script-update-interval=0,timeout=10,requires-body=true,max-size=1048576
 
 [MITM]
 hostname = lcs-mobile-cops.adobe.io
