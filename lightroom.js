@@ -48,8 +48,12 @@ function _b64encode(s) {
 
 const url = $request.url;
 
+// 命中日志：任何进入本脚本的请求都会打印（没有这行 = 脚本没执行）
+console.log('LR hit: ' + url);
+
 // 只处理授权接口，其他请求放行
 if (url.indexOf('lcs-mobile-cops.adobe.io') === -1) {
+  console.log('LR pass: not licensing host');
   $done({});
 }
 
