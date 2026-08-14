@@ -1,0 +1,12 @@
+#!name=Adobe Lightroom 会员解锁
+#!desc=拦截 Lightroom 授权校验接口，解锁高级功能。仅供学习交流，请支持正版。
+#!author=DSH
+#!date=2026-08-14
+#!system=ios
+#!homepage=https://www.adobe.com/products/photoshop-lightroom.html
+
+[Script]
+http-response ^https?:\/\/lrmobile-api\.licensing\.adobe\.com\/v1\/lightroom script-path=lightroom.js,timeout=10,require-body=true,max-size=0
+
+[MITM]
+hostname = lrmobile-api.licensing.adobe.com
