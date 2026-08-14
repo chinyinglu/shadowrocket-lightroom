@@ -64,7 +64,7 @@ if (body && body.asnp && body.asnp.payload) {
         }
         const cc = it.fulfillable_items && it.fulfillable_items.cc_storage;
         if (cc && cc.charging_model) {
-          cc.charging_model.cap = 1099511627776; // 1TB
+          cc.charging_model.cap = 1024; // 1TB（单位 GB）
           cc.charging_model.unit = 'GB';
           cc.charging_model.model = 'RECURRING';
           cc.charging_model.overage = 'NA';
