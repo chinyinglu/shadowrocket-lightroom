@@ -89,6 +89,17 @@ if (body && body.asnp && body.asnp.payload) {
       });
     }
 
+    // 缓存控制：Adobe 默认缓存授权约 180 天，会导致修改迟迟不生效。
+    // 改为 24 小时内过期，App 会尽快重新请求授权，避免被旧缓存锁死。
+    const now = Date.now();
+    if (inner.controlProfile) {
+      inner.controlProfile.cacheLifetime = 86400000; // 24h
+      inner.controlProfile.validUptoTimestamp = now + 86400000;
+      if (inner.controlProfile.cacheExpiryWarningControl) {
+        inner.controlProfile.cacheExpiryWarningControl.warningStartTimestamp = now + 3600000;
+      }
+    }
+
     body.asnp.payload = _b64encode(JSON.stringify(inner));
     console.log('LR patched OK');
   } catch (e) {
